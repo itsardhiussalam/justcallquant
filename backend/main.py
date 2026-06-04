@@ -1,17 +1,24 @@
+import os
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 
-app = FastAPI(title="Macro Dashboard API")
+# 1. Load file .env yang sudah kita buat sebelumnya
+load_dotenv()
 
-# Allow your local Nuxt app to communicate safely
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Nuxt default port
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# 2. Inisialisasi aplikasi FastAPI
+app = FastAPI(title="justcallquant API", version="0.1.0")
+
+@app.get("/")
+def read_root():
+    # Mengambil test variable dari .env untuk memastikan konfigurasi aman
+    secret_check = os.getenv("SECRET_KEY", "File .env tidak terbaca atau kosong")
+    
+    return {
+        "status": "success",
+        "message": "FastAPI engine is running smoothly!",
+        "env_check": secret_check
+    }
 
 @app.get("/api/health")
 def health_check():
-    return {"status": "healthy", "message": "Backend engine ready"}
+    return {"status": "healthy"}
