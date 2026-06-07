@@ -60,3 +60,58 @@ def get_crypto_price(symbol: str):
             status_code=503, 
             detail=f"Gagal terhubung ke server Binance: {str(e)}"
         )
+    
+
+# ========================================================================
+# ENDPOINT HISTORIS: CANDLESTICK / KLINES (OHLCV)
+# ========================================================================
+@app.get("/api/ticker/crypto/historical/{symbol}")
+def get_crypto_historical(symbol: str, interval: str = "1d", limit: int = 30):
+    """
+    Mengambil data historis candlestick (Klines) dari Binance.
+    - interval: 1m, 1h, 1d, 1w (default: 1d / harian)
+    - limit: jumlah candlestick yang ditarik (default: 30 hari terakhir)
+    """
+    pair = symbol.upper()
+    
+    # Menggunakan URL alternatif .vision yang aman dari blokir
+    klines_url = f"https://data-api.binance.vision/api/v3/klines?symbol={pair}&interval={interval}&limit={limit}"
+    
+    try:
+        response = requests.get(klines_url, timeout=5)
+        
+        if response.status_code == 400:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Simbol '{pair}' atau interval tidak valid."
+            )
+            
+        data = response.json()
+        
+        # Binance mengembalikan data dalam bentuk array mentah tanpa label.
+        # Kita format ulang menjadi JSON (Dictionary) yang rapi dan siap pakai.
+        formatted_data = []
+        for candle in data:
+            formatted_data.append({
+                "open_time": candle[0],
+                "open": float(candle[1]),
+                "high": float(candle[2]),
+                "low": float(candle[3]),
+                "close": float(candle[4]),
+                "volume": float(candle[5]),
+                "close_time": candle[6]
+            })
+            
+        return {
+            "status": "success",
+            "asset": pair,
+            "interval": interval,
+            "data_points": len(formatted_data),
+            "historical_data": formatted_data
+        }
+        
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(
+            status_code=503, 
+            detail=f"Gagal menarik data historis: {str(e)}"
+        )
