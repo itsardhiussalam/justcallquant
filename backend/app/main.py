@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from dotenv import load_dotenv
 
 from routers import macro
+from routers import sentiment
 
 load_dotenv()
 
@@ -12,6 +13,7 @@ app = FastAPI(
 )
 
 app.include_router(macro.router)
+app.include_router(sentiment.router)
 # app.include_router(technical.router)
 # app.include_router(fundamental.router)
 # app.include_router(sentiment.router)

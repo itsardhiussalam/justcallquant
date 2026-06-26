@@ -4,11 +4,6 @@ from core.config import get_settings
 settings = get_settings()
 BASE_URL = "https://api.stlouisfed.org/fred/series/observations"
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (justcallquant API client)"
-}
-
-
 def get_series_observations(series_id: str, limit: int = 6) -> dict:
     params = {
         "series_id": series_id,

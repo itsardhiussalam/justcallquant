@@ -31,11 +31,11 @@ def fetch_macro_indicator(indicator_name: str, limit: int = 6) -> MacroIndicator
 
     except Exception as e:
         logger.warning(f"Gagal fetch {indicator_name} dari FRED: {e}")
+        raise
         # 3. Fallback: kalau ada data lama di cache (meski TTL belum expire saat itu
         # tapi misal kita simpan juga last-known-good di tempat lain), kembalikan itu.
         # Untuk simplifikasi di sini, kita raise — tapi idealnya simpan last_known_good
         # di cache terpisah tanpa TTL sebagai fallback layer.
-        raise
 
 
 def _parse_value(raw_value: str) -> float | None:

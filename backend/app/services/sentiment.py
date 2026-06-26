@@ -1,42 +1,49 @@
-import os
-import requests
-from fastapi import HTTPException
+from core.cache import sentiment_cache, cache_key
+from providers.alpha_vantage import get_news_sentiment_raw
+from schemas.sentiment import NewsSentimentResponse, NewsSentimentItem
+import logging
+
+logger = logging.getLogger(__name__)
 
 
-def fetch_news_sentiment(symbol: str, limit: int = 5):
-    api_key = os.getenv("ALPHA_VANTAGE_API_KEY", "demo")
-    ticker = symbol.upper()
-    url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={ticker}&apikey={api_key}"
-    
+def fetch_news_sentiment(symbol: str, limit: int = 5) -> NewsSentimentResponse:
+    key = cache_key("sentiment", symbol, limit)
+
+    # 1. Cek cache dulu
+    if key in sentiment_cache:
+        cached_data = sentiment_cache[key]
+        return NewsSentimentResponse(**cached_data, is_stale=False)
+
+    # 2. Cache miss -> fetch dari Alpha Vantage
     try:
-        response = requests.get(url, timeout=7)
-        data = response.json()
-        
-        if "Note" in data or "Information" in data:
-            return {
-                "status": "limited",
-                "message": "Kuota API Alpha Vantage habis (Limit tier gratis 25 request/hari) atau key belum diisi.",
-                "sample_data": []
-            }
-            
-        feed = data.get("feed", [])[:limit]
-        formatted_news = []
-        
-        for item in feed:
-            formatted_news.append({
-                "title": item.get("title"),
-                "url": item.get("url"),
-                "source": item.get("source"),
-                "time_published": item.get("time_published"),
-                "overall_sentiment_score": item.get("overall_sentiment_score"),
-                "overall_sentiment_label": item.get("overall_sentiment_label")
-            })
-            
-        return {
-            "status": "success",
-            "asset": ticker,
-            "news_count": len(formatted_news),
-            "news_feed": formatted_news
+        raw = get_news_sentiment_raw(symbol, limit)
+
+        # Khusus Alpha Vantage: cek apakah ini error message yang nyamar jadi 200 OK
+        if "Information" in raw or "Error Message" in raw or "Note" in raw:
+            error_msg = raw.get("Information") or raw.get("Error Message") or raw.get("Note")
+            logger.warning(f"Alpha Vantage menolak request untuk {symbol}: {error_msg}")
+            raise ValueError(f"Alpha Vantage error: {error_msg}")
+
+        articles = [
+            NewsSentimentItem(
+                title=item["title"],
+                url=item["url"],
+                time_published=item["time_published"],
+                summary=item.get("summary"),
+                overall_sentiment_score=float(item["overall_sentiment_score"]),
+                overall_sentiment_label=item["overall_sentiment_label"],
+            )
+            for item in raw.get("feed", [])
+        ]
+
+        result = {
+            "symbol": symbol,
+            "articles": articles,
+            "source": "Alpha Vantage",
         }
+        sentiment_cache[key] = result
+        return NewsSentimentResponse(**result, is_stale=False)
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.warning(f"Gagal fetch sentiment {symbol} dari Alpha Vantage: {e}")
+        raise
